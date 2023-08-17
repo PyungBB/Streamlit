@@ -1,0 +1,45 @@
+import streamlit as st
+import plotly.express as px
+import pandas as pd
+
+# Sample data
+data = {
+    'date': ['2023-08-01', '2023-08-01', '2023-08-02', '2023-08-03'],
+    'house_color': ['red', 'blue', 'blue', 'green'],
+    'window_color': ['yellow', 'yellow', 'blue', 'red']
+}
+df = pd.DataFrame(data)
+
+def main():
+    st.title('House Data Filter and Visualization')
+
+    # Filter options
+    unique_dates = df['date'].unique()
+    unique_house_colors = df['house_color'].unique()
+    unique_window_colors = df['window_color'].unique()
+
+    selected_date = st.selectbox('Select Date', ['All'] + list(unique_dates))
+    selected_house_color = st.selectbox('Select House Color', ['All'] + list(unique_house_colors))
+    selected_window_color = st.selectbox('Select Window Color', ['All'] + list(unique_window_colors))
+
+    # Filter the dataframe
+    filtered_df = df.copy()
+    if selected_date != 'All':
+        filtered_df = filtered_df[filtered_df['date'] == selected_date]
+    if selected_house_color != 'All':
+        filtered_df = filtered_df[filtered_df['house_color'] == selected_house_color]
+    if selected_window_color != 'All':
+        filtered_df = filtered_df[filtered_df['window_color'] == selected_window_color]
+
+    st.dataframe(filtered_df)
+
+    # Count combinations and plot
+    if not filtered_df.empty:
+        count_df = filtered_df.groupby(['house_color', 'window_color']).size().reset_index(name='count')
+        fig = px.bar(count_df, x='house_color', y='count', color='window_color', title='House and Window Color Count')
+        st.plotly_chart(fig)
+    else:
+        st.write("No data to display after filtering!")
+
+if __name__ == '__main__':
+    main()
