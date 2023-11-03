@@ -1,0 +1,32 @@
+@echo off
+SETLOCAL EnableExtensions
+
+REM Define the local source folders and the files you want to copy
+set "sourceFolder1=C:\local\path\to\project\folder1"
+set "sourceFolder2=C:\local\path\to\project\folder2"
+set "sourceFolder3=C:\local\path\to\project\folder3"
+
+REM Define the file patterns to copy from each folder
+set "filePattern1=*.docx"
+set "filePattern2=*.xlsx"
+set "filePattern3=*.pptx"
+
+REM Define the network destination base folder
+set "destBaseFolder=\\network\share\path\to\backup"
+
+REM Create a timestamped folder based on the current date and time
+set "timestamp=%DATE:~-4%-%DATE:~4,2%-%DATE:~7,2%_%TIME:~0,2%-%TIME:~3,2%-%TIME:~6,2%"
+set "destFolder=%destBaseFolder%\%timestamp%"
+
+REM Create the destination folder
+if not exist "%destFolder%" mkdir "%destFolder%"
+
+REM Copy the files from each source folder to the destination folder
+echo Copying files to %destFolder%...
+xcopy "%sourceFolder1%\%filePattern1%" "%destFolder%\" /D /I /Y
+xcopy "%sourceFolder2%\%filePattern2%" "%destFolder%\" /D /I /Y
+xcopy "%sourceFolder3%\%filePattern3%" "%destFolder%\" /D /I /Y
+
+echo Backup completed successfully.
+ENDLOCAL
+pause
