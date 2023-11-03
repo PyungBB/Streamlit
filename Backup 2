@@ -1,0 +1,31 @@
+@echo off
+SETLOCAL EnableExtensions
+
+REM Define the local source folder
+set "sourceFolder=C:\local\path\to\project"
+
+REM Define the network destination base folder
+set "destBaseFolder=\\network\share\path\to\backup"
+
+REM Create a timestamp using the current date and time
+REM Format: YYYYMMDD_HHMMSS
+set "timestamp=%DATE:~-4%%DATE:~4,2%%DATE:~7,2%_%TIME:~0,2%%TIME:~3,2%%TIME:~5,2%"
+
+REM Replace invalid characters in time (space and :)
+set timestamp=%timestamp: =0%
+set timestamp=%timestamp::=%
+
+REM Create the destination folder with the timestamp
+set "destFolder=%destBaseFolder%\%timestamp%"
+
+REM Check if the destination folder exists and create it if it doesn't
+if not exist "%destFolder%" (
+    mkdir "%destFolder%"
+)
+
+REM Copy the entire directory structure and files to the destination folder
+xcopy "%sourceFolder%" "%destFolder%" /E /H /C /I /Y
+
+echo Backup completed successfully to %destFolder%
+ENDLOCAL
+pause
