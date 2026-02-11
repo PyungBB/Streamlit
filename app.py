@@ -299,7 +299,7 @@ with st.sidebar:
 
     st.divider()
     st.header("Salary sacrifice & pension")
-    fixed_ss_monthly = money_input("Fixed salary sacrifice per month (£)", 200, key="fixed_ss")
+    fixed_ss_monthly = money_input("Fixed salary sacrifice per month (£)", 0, key="fixed_ss")
     extra_ss_annual = money_input("Extra salary sacrifice (annual) (£)", 0, key="extra_ss")
     pension_rate = st.number_input("Pension rate (%)", value=0.0, step=0.5, min_value=0.0, max_value=100.0) / 100.0
     apply_fixed_ss_in_bonus = st.toggle("Apply fixed SS in bonus period too", value=True)
@@ -767,4 +767,5 @@ with tab4:
     st.metric("Extra monthly equivalent (£)", f"{required_extra_ss/12.0:,.0f}")
 
     st.caption("This solver uses your current pension rate and the ‘pension on bonus’ toggle.")
+
 
