@@ -283,8 +283,8 @@ with st.sidebar:
 
     st.divider()
     st.header("Income inputs")
-    salary = money_input("Annual salary (£)", 100000, key="salary")
-    bonus = money_input("Bonus amount (£)", 50000, key="bonus")
+    salary = money_input("Annual salary (£)", 35000, key="salary")
+    bonus = money_input("Bonus amount (£)", 0, key="bonus")
 
     if periods == 12:
         bonus_label = st.selectbox("Bonus month", labels, index=11)
@@ -317,7 +317,7 @@ with st.sidebar:
 
     pension_rate = st.number_input(
         "Pension rate (%)",
-        value=10.0,
+        value=0.0,
         step=0.5,
         min_value=0.0,
         max_value=100.0
@@ -768,3 +768,4 @@ with tab4:
         st.caption("Extra salary sacrifice input is treated as a bonus-period-only amount.")
     else:
         st.caption("Extra salary sacrifice input is currently spread across periods (toggle it to bonus-period-only).")
+
