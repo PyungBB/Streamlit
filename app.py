@@ -307,7 +307,7 @@ with st.sidebar:
 
     st.divider()
     st.header("Salary sacrifice & pension")
-    fixed_ss_monthly = money_input("Fixed salary sacrifice per month (£)", 200, key="fixed_ss")
+    fixed_ss_monthly = money_input("Fixed salary sacrifice per month (£)", 0, key="fixed_ss")
     extra_ss_annual = money_input("Extra salary sacrifice in bonus period (£)", 0, key="extra_ss")
 
     extra_ss_in_bonus_only = st.toggle(
@@ -768,4 +768,5 @@ with tab4:
         st.caption("Extra salary sacrifice input is treated as a bonus-period-only amount.")
     else:
         st.caption("Extra salary sacrifice input is currently spread across periods (toggle it to bonus-period-only).")
+
 
