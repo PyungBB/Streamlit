@@ -1,5 +1,5 @@
 # app.py
-# Drop-in full app with:
+# Full app with:
 # - 3 modes: Planning / Cumulative taper-aware / Match payslip (tax code + emergency)
 # - Graphs
 # - Excel export (data + Excel-native charts)
@@ -7,6 +7,8 @@
 # - Per-period table: whole £ only, commas, negatives in parentheses
 # - Header hover tooltips (column_config help)
 # - Column group toggles (sidebar)
+# - FIX: Pension is based on PRE-salary-sacrifice pay (bonus only if elected)
+# - NEW: Extra salary sacrifice can be applied in BONUS period only (March) and solver targets March-only
 
 import re
 from dataclasses import dataclass
@@ -281,15 +283,21 @@ with st.sidebar:
 
     st.divider()
     st.header("Income inputs")
-    salary = money_input("Annual salary (£)", 35000, key="salary")
-    bonus = money_input("Bonus amount (£)", 0, key="bonus")
+    salary = money_input("Annual salary (£)", 100000, key="salary")
+    bonus = money_input("Bonus amount (£)", 50000, key="bonus")
 
     if periods == 12:
         bonus_label = st.selectbox("Bonus month", labels, index=11)
         bonus_period = labels.index(bonus_label) + 1
     else:
-        bonus_period = st.number_input(f"Bonus period number (1..{periods})", value=min(periods, 12), step=1, min_value=1, max_value=periods)
-        
+        bonus_period = st.number_input(
+            f"Bonus period number (1..{periods})",
+            value=min(periods, 12),
+            step=1,
+            min_value=1,
+            max_value=periods
+        )
+
     st.divider()
     st.header("Match payslip inputs")
     tax_code_raw = st.text_input(
@@ -299,29 +307,44 @@ with st.sidebar:
 
     st.divider()
     st.header("Salary sacrifice & pension")
-    fixed_ss_monthly = money_input("Fixed salary sacrifice per month (£)", 0, key="fixed_ss")
-    extra_ss_annual = money_input("Extra salary sacrifice (annual) (£)", 0, key="extra_ss")
-    pension_rate = st.number_input("Pension rate (%)", value=0.0, step=0.5, min_value=0.0, max_value=100.0) / 100.0
+    fixed_ss_monthly = money_input("Fixed salary sacrifice per month (£)", 200, key="fixed_ss")
+    extra_ss_annual = money_input("Extra salary sacrifice in bonus period (£)", 0, key="extra_ss")
+
+    extra_ss_in_bonus_only = st.toggle(
+        "Apply extra salary sacrifice in bonus period only",
+        value=True
+    )
+
+    pension_rate = st.number_input(
+        "Pension rate (%)",
+        value=10.0,
+        step=0.5,
+        min_value=0.0,
+        max_value=100.0
+    ) / 100.0
+
     apply_fixed_ss_in_bonus = st.toggle("Apply fixed SS in bonus period too", value=True)
+
+    # default OFF = bonus doesn't affect pension unless you elect it (taper lever)
     apply_pension_to_bonus = st.toggle("Apply pension on bonus too", value=False)
 
-    # Column group toggles (defaults: core + totals + NI + net/cum)
+    st.divider()
+    st.header("Per-period table columns")
     visible_groups: Dict[str, bool] = {}
-    for group, cols in COLUMN_GROUPS.items():
+    for group, _cols in COLUMN_GROUPS.items():
         default_on = group in ["Core pay", "Income tax (summary)", "National Insurance", "Net & cumulative"]
         visible_groups[group] = st.checkbox(group, value=default_on)
-        
+
     st.divider()
     st.header("Income Tax parameters")
     PA_base = money_input("Personal Allowance (base) (£)", 12570, key="pa_base")
     taper_threshold = money_input("£100k taper threshold (£)", 100000, key="taper_threshold")
     basic_limit = money_input("Basic rate limit (£)", 50270, key="basic_limit")
     higher_limit = money_input("Higher rate limit (£)", 125140, key="higher_limit")
+
     r_basic = st.number_input("Basic rate", value=0.20, step=0.01, min_value=0.0, max_value=1.0)
     r_higher = st.number_input("Higher rate", value=0.40, step=0.01, min_value=0.0, max_value=1.0)
     r_add = st.number_input("Additional rate", value=0.45, step=0.01, min_value=0.0, max_value=1.0)
-
-
 
     st.divider()
     st.header("National Insurance")
@@ -331,21 +354,18 @@ with st.sidebar:
     NI_upper = st.number_input("NI upper rate", value=0.02, step=0.01, min_value=0.0, max_value=1.0)
 
     st.divider()
-    st.header("Per-period table columns")
-
-
-
-    st.divider()
     st.header("Visuals")
     show_cumulative_lines = st.toggle("Show cumulative lines", value=True)
 
 
 # ----------------------------
-# Build per-period table (bonus is paid alongside salary in that period)
+# Build per-period table
+# - Pension is based on PRE-salary-sacrifice pay
+# - Extra salary sacrifice can be bonus-period only
 # ----------------------------
 salary_per_period = salary / periods
-extra_ss_per_period = extra_ss_annual / periods
 fixed_ss_per_period = fixed_ss_monthly * 12.0 / periods  # monthly -> per-period
+extra_ss_spread = extra_ss_annual / periods  # used if not bonus-only
 
 rows = []
 for i, lab in enumerate(labels, start=1):
@@ -354,16 +374,19 @@ for i, lab in enumerate(labels, start=1):
     total_gross = gross_salary + gross_bonus
 
     fixed_ss = fixed_ss_per_period if (apply_fixed_ss_in_bonus or i != bonus_period) else 0.0
-    total_ss = fixed_ss + extra_ss_per_period
-    pension_base = max(0.0, gross_salary - total_ss)
 
-# Bonus only included if explicitly elected (taper lever)
+    if extra_ss_in_bonus_only:
+        extra_ss_this_period = float(extra_ss_annual) if i == bonus_period else 0.0
+    else:
+        extra_ss_this_period = float(extra_ss_spread)
+
+    total_ss = fixed_ss + extra_ss_this_period
+
+    pension_base = gross_salary
     if apply_pension_to_bonus:
         pension_base += gross_bonus
-
     pension = pension_base * pension_rate
 
-    pension = pension_base * pension_rate
     adj_taxable = total_gross - total_ss - pension
 
     rows.append([lab, gross_salary, gross_bonus, total_gross, total_ss, pension, adj_taxable])
@@ -464,7 +487,6 @@ else:
         x = float(x)
 
         if tc.is_emergency:
-            # Period-only
             if tc.code_type == "special":
                 if tc.special.endswith("NT"):
                     b = h = a = t = 0.0
@@ -491,7 +513,6 @@ else:
             b_d.append(b); h_d.append(h); a_d.append(a); t_d.append(t)
 
         else:
-            # Cumulative
             cum_adj += x
 
             if tc.code_type == "special":
@@ -592,7 +613,6 @@ excel_bytes = build_excel_export(df, summary)
 # ----------------------------
 tab1, tab2, tab3, tab4 = st.tabs(["Main", "Graphs", "Export", "Taper Solver"])
 
-# Display formatting map
 money_cols = [
     "Gross Salary","Gross Bonus","Total Gross",
     "Salary Sacrifice (Total)","Pension","Adjusted Taxable",
@@ -605,14 +625,13 @@ int_like_cols = [
     "Tax Code Allowance (annual)",
 ]
 
-# Tooltips ("bubble pop up")
 col_help = {
     "Period": "Pay period label (e.g., April…March).",
     "Gross Salary": "Base salary paid in that period (before deductions).",
     "Gross Bonus": "Bonus paid in that period (0 in non-bonus periods).",
     "Total Gross": "Gross Salary + Gross Bonus.",
     "Salary Sacrifice (Total)": "Pre-tax salary sacrifice deducted this period.",
-    "Pension": "Employee pension contribution deducted this period.",
+    "Pension": "Employee pension contribution deducted this period (pre-sacrifice base).",
     "Adjusted Taxable": "Total Gross - Salary Sacrifice - Pension (used for PAYE/NI in this model).",
     "Income Tax - Basic": "Income tax charged at basic rate in this period.",
     "Income Tax - Higher": "Income tax charged at higher rate in this period.",
@@ -645,7 +664,6 @@ with tab1:
         if c in df_display.columns:
             df_display[c] = df_display[c].map(fmt_int_str)
 
-    # Apply column toggles (preserve original order)
     visible_columns: List[str] = []
     for group, enabled in visible_groups.items():
         if enabled:
@@ -657,7 +675,6 @@ with tab1:
         visible_columns = ["Period"] if "Period" in df_display.columns else list(df_display.columns[:1])
 
     df_visible = df_display[visible_columns]
-
     column_config = {c: st.column_config.TextColumn(help=col_help.get(c, "")) for c in df_visible.columns}
 
     st.dataframe(df_visible, use_container_width=True, column_config=column_config)
@@ -728,44 +745,26 @@ with tab3:
 with tab4:
     st.subheader("Taper Solver (£100k adjusted net income)")
 
-    # Annual totals based on inputs
-    annual_gross = float(salary + bonus)
+    annual_gross_solver = float(salary + bonus)
 
-    # Salary sacrifice total (fixed monthly + extra annual)
     fixed_ss_annual = float(fixed_ss_monthly * 12.0)
-    current_total_ss = float(fixed_ss_annual + extra_ss_annual)
+    current_total_ss_without_extra = float(fixed_ss_annual)
 
-    # Pension base rules:
-    # - Always on base salary
-    # - Bonus only if elected
-    pension_base_annual = float(max(0.0, salary - current_total_ss))
+    pension_base_annual = float(salary)
     if apply_pension_to_bonus:
         pension_base_annual += float(bonus)
+    pension_annual = pension_base_annual * float(pension_rate)
 
-    current_pension_annual = pension_base_annual * float(pension_rate)
+    current_ani_no_extra = annual_gross_solver - current_total_ss_without_extra - pension_annual
 
-    # Adjusted Net Income (ANI proxy in this model)
-    current_ani = annual_gross - current_total_ss - current_pension_annual
+    required_march_extra_ss = max(0.0, current_ani_no_extra - float(taper_threshold))
 
-    st.write(f"Current estimated adjusted net income: **£{current_ani:,.0f}**")
+    st.write(f"Current estimated adjusted net income (before extra bonus-period SS): **£{current_ani_no_extra:,.0f}**")
     st.write(f"Taper threshold: **£{float(taper_threshold):,.0f}**")
 
-    # How much extra pre-tax reduction needed to hit threshold
-    # Extra reduction can be achieved via (extra salary sacrifice) and/or (extra pension).
-    # This solver answers: "extra salary sacrifice needed" assuming pension rate stays as set.
-    # If you increase pension rate, this changes.
+    st.metric("Extra salary sacrifice needed in bonus period (£)", f"{required_march_extra_ss:,.0f}")
 
-    # Each £1 of additional salary sacrifice reduces ANI by:
-    #   1 + pension_rate on the sacrificed amount? Not exactly—depends on scheme.
-    # In THIS model we treat salary sacrifice and pension as separate levers.
-    # So: extra_SS reduces ANI by £1 directly.
-    # (If you want "pension-only" or "mixed" solver, we can add that.)
-    required_extra_ss = max(0.0, float(taper_threshold) - 0.0)  # placeholder for structure
-    required_extra_ss = max(0.0, current_ani - float(taper_threshold))
-
-    st.metric("Extra annual salary sacrifice needed (£)", f"{required_extra_ss:,.0f}")
-    st.metric("Extra monthly equivalent (£)", f"{required_extra_ss/12.0:,.0f}")
-
-    st.caption("This solver uses your current pension rate and the ‘pension on bonus’ toggle.")
-
-
+    if extra_ss_in_bonus_only:
+        st.caption("Extra salary sacrifice input is treated as a bonus-period-only amount.")
+    else:
+        st.caption("Extra salary sacrifice input is currently spread across periods (toggle it to bonus-period-only).")
